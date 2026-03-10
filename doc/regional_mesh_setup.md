@@ -52,7 +52,7 @@ Before we start, we need to modify the `namelist.input`! These NCAR provided mes
 
 All that's left is to run the file: `./grid_rotate (input grid name) (output grid name)`. I named my grid `x5.6488066.rotated.grid.nc`, but you can do whatever you wish. It's good practice to leave it ending in `*.grid.nc`. This might take a minute or two with a high resolution mesh. 
 
-If you just want to rotate where your global variable resolution grid refines into, then you're done! You should be able to use the same .graph.info.part. file in your MPAS simulations.
+If you just want to rotate where your ariable resolution grid refines into and leave your simulation as a global one, then you're done! You should be able to use the same .graph.info.part. from the original archive in your MPAS simulations.
 
 ---
 
