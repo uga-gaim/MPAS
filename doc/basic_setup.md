@@ -8,11 +8,11 @@ You will need access to the following modules/compilers:
 
 - mpicc 
 
-- netCDF netCDF/4.9.3-gompi-2025a
+- netCDF
 
 - netCDF-Fortran
 
-- PnetCDF PnetCDF/1.12.3-gompi-2023b
+- PnetCDF
 
 ---
 ## Compilation!
