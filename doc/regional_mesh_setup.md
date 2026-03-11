@@ -16,7 +16,29 @@ Additionally, for running a regional simulation, you will need these three tools
 
 - [MPAS-Limited-Area](https://github.com/MPAS-Dev/MPAS-Limited-Area)
 
-- gpmetis. Instructions can be found in `metis.md`
+- gpmetis. See instructions:
+
+METIS is used to split your mesh into multiple parts in a .graph file for parallel processing, which is required for MPAS to function with your mesh.
+
+To install METIS:
+```sh
+export INSTALL_DIR=(dir)
+
+git clone https://github.com/KarypisLab/GKlib.git
+cd GKlib
+make config prefix=${INSTALL_DIR}/GKlib
+make
+make install
+cd ..
+
+git clone https://github.com/KarypisLab/METIS.git
+cd METIS/
+make config prefix=${INSTALL_DIR}/METIS gklib_path=${INSTALL_DIR}/GKlib
+make
+make install
+```
+... where (dir) is the directory in which you want METIS to be installed.
+
 
 For some more finer control over resolution, you may also like to grab:
 
@@ -52,7 +74,7 @@ Before we start, we need to modify the `namelist.input`! These NCAR provided mes
 
 All that's left is to run the file: `./grid_rotate (input grid name) (output grid name)`. I named my grid `x5.6488066.rotated.grid.nc`, but you can do whatever you wish. It's good practice to leave it ending in `*.grid.nc`. This might take a minute or two with a high resolution mesh. 
 
-If you just want to rotate where your ariable resolution grid refines into and leave your simulation as a global one, then you're done! You should be able to use the same .graph.info.part. from the original archive in your MPAS simulations.
+If you just want to rotate where your global variable resolution grid refines into, then you're done! You should be able to use the same .graph.info.part. file in your MPAS simulations.
 
 ---
 
