@@ -16,7 +16,29 @@ Additionally, for running a regional simulation, you will need these three tools
 
 - [MPAS-Limited-Area](https://github.com/MPAS-Dev/MPAS-Limited-Area)
 
-- gpmetis. Instructions can be found in `metis.md`
+- gpmetis. See instructions:
+
+METIS is used to split your mesh into multiple parts in a .graph file for parallel processing, which is required for MPAS to function with your mesh.
+
+To install METIS:
+```sh
+export INSTALL_DIR=(dir)
+
+git clone https://github.com/KarypisLab/GKlib.git
+cd GKlib
+make config prefix=${INSTALL_DIR}/GKlib
+make
+make install
+cd ..
+
+git clone https://github.com/KarypisLab/METIS.git
+cd METIS/
+make config prefix=${INSTALL_DIR}/METIS gklib_path=${INSTALL_DIR}/GKlib
+make
+make install
+```
+... where (dir) is the directory in which you want METIS to be installed.
+
 
 For some more finer control over resolution, you may also like to grab:
 
@@ -66,7 +88,7 @@ If you just want to rotate where your global variable resolution grid refines in
 
 - (lat) & (lon) are the lat, lon of the center point of your grid.
 
-This can take a good bit of time, depending on resolution and scale factor. It is quite memory intensive! Scaling my 15-3km with a scale factor of 2.0 took just around 1hr15min and ~8gb of mem! If you haven't yet already, this would be a great time to look at `compile.md` and begin setting up and compiling MPAS on your HPC cluster.
+This can take a good bit of time, depending on resolution and scale factor. It is quite memory intensive! Scaling my 15-3km with a scale factor of 2.0 took just around 1hr15min and ~8gb of mem! This is sort of an extreme exmaple, though. Scaling a 46-12km mesh by 12.0 took a much shorter (but still somewhat lengthy) ~8min. If you haven't yet already, this would be a great time to look at `compile.md` and begin setting up and compiling MPAS on your HPC cluster.
 
 In case you want a view of what your mesh looks like after this process, I've provided a `mesh_resolution.py` script from NCAR's MPAS-A tutorial in this repo's scripts (/scripts) that will output an image with approx. mesh resolutions contoured. You can run it with `python ./mesh_resolution.py (grid file)`. This'll output a plot of the mesh resolution to your pwd under `mesh_resolution.png`.
 
