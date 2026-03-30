@@ -173,6 +173,16 @@ MAKE SURE these are set from the defaults:
 
 - `config_noahmp_static = false` should be ADDED underneath the data path
 
+- Under `&data_sources`:
+  
+    - `config_supersample_factor = 3`
+  
+    - `config_lu_supersample_factor = 1`
+  
+    - `config_30s_supersample_factor = 1`
+
+    - This is NOT well documented almost anywhere and it gave me almost a week straight of a headache trying to figure this out but if you have a super high resolution mesh (your smallest grid spacing is ~1km) you will need to UP THESE NUMBERS or else you will get an error when it comes time to run the models!!! I found 9/3/3 (but 6/2/2 should be OK too) to work for my grid that, at its smallest, was just under 1km. If your grid spacing is NOT super high res then you should be OK leaving them at 3/1/1.
+
 - Under `&preproc_stages`
 
     - `config_static_interp = true`
