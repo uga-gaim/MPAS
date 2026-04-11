@@ -1,5 +1,16 @@
 # MPAS-A Compilation and Basic Setup
 
+## Table of Contents
+1. Compilation
+2. Directory Setup
+3. Static Fields
+4. Forcing Data
+   - GFS
+   - ERA5
+5. IC Interpolation
+6. LBC Generation
+7. Running MPAS-A
+
 ## Preqs
 
 You will need access to the following modules/compilers:
@@ -85,7 +96,7 @@ cp ../MPAS-Model/namelist.* .
 cp ../MPAS-Model/streams.* .
 ```
 
-The directory is almost fully setup, but we still need a mesh! You can download your favorite from [here](https://www2.mmm.ucar.edu/projects/mpas/site/downloads/meshes.html), and unpack it. You'll need the .grid.nc and a .graph.part. file. The number at the end of the graph file should correspond to the number of MPI tasks you plan to run MPAS with. You'll also notice these meshes are global and (for variable resolution) centered on 0, 0. If you'd like to change either of those, see `regional_setup.md`.
+The directory is almost fully setup, but we still need a mesh! You can download your favorite from [here](https://www2.mmm.ucar.edu/projects/mpas/site/downloads/meshes.html), and unpack it. You'll need the .grid.nc file (contains all the model gridcells) and a .graph.part. file (sections them up for multiprocessing support). The number at the end of the graph file should correspond to the number of MPI tasks you plan to run MPAS with. You'll also notice these meshes are global and (for variable resolution) centered on 0, 0. If you'd like to change either of those, see `regional_setup.md`.
 
 Bring your mesh `.grid.nc` file and your `.graph.info.part.` file into your MPAS directory. Your directory now has almost all the files it needs to start running MPAS simulations!
 
@@ -164,7 +175,7 @@ Open your `namelist.init_atmosphere` file and modify these lines:
     config_block_decomp_file_prefix = 'pr.graph.info.part.'
 /
 ```
-
+> **Important Config!**
 MAKE SURE these are set from the defaults:
 
 - `config_init_case = 7`
@@ -205,15 +216,15 @@ Open your `streams.init_atmosphere` file and change **these lines** to the follo
 
 ```
 <immutable_stream name="input"
-                  type="input"
-                  filename_template="pr.grid.nc"
-                  input_interval="initial_only" />
+      type="input"
+      filename_template="pr.grid.nc"
+      input_interval="initial_only" />
 
 <immutable_stream name="output"
-                  type="output"
-                  filename_template="pr.static.nc"
-                  packages="initial_conds"
-                  output_interval="initial_only" />
+      type="output"
+      filename_template="pr.static.nc"
+      packages="initial_conds"
+      output_interval="initial_only" />
 ```
 
 - `input`'s `filename_template` should be the name of your .grid.nc file.
@@ -222,7 +233,7 @@ Open your `streams.init_atmosphere` file and change **these lines** to the follo
 
 - Everything else not specified can remain the same.
 
-By default, MPAS's 'clobber mode' is set to `never_modify`, which means that should you ever re-run the model, it will refuse to overwrite any files but it will *not* fail. If you wish to have the model automatically overwrite any file it's already made, add `clobber_mode="overwrite"`. It doesn't matter that much here, as you won't be recomputing your static fields a lot, but when you're doing repeated reprocessing and down the line, it may help!
+By default, MPAS's 'clobber mode' is set to `never_modify`, which means that should you ever re-run the model, it will refuse to overwrite any files but it will *not* fail. If you wish to have the model automatically overwrite any file it's already made, add `clobber_mode="overwrite"`. It doesn't matter that much here, as you won't be recomputing your static fields a lot, but when you're doing repeated reprocessing down the line, it may help!
 
 Now its time to actually interpolate the static fields! Using your HPC's scheduler (or on the login node if you're a SICKO (just kidding, please schedule it)) run:
 
@@ -249,7 +260,7 @@ and have a brand new `*.static.nc` file in your MPAS directory! Unless you chang
 
 ### Welcome Back ungrib!
 
-**If you plan on JUST using ERA5/ungribbed data, this part can be skipped unless you'd like to be prepared for the instance you will need to use real model data.**
+**If you plan on JUST using ungribbed data, this part can be skipped unless you'd like to be prepared for the instance you will need to use real model data.**
 
 Now that we have our static fields set and ready to go, next we need to give our model its initial forcing data and (if running a regional sim) boundary conditions. MPAS can ingest datasets from a model like the GFS and reanalysis like ERA5, but as of now the main branch of MPAS CANNOT support datasets from models like HRRR and NAM due to issues with soil levels.[^1]
 
@@ -276,7 +287,7 @@ mbc18672@c4-16 WPS$ ls -lh ./ungrib/src/ungrib.exe
 -rwxr-xr-x 1 mbc18672 whlab 2414408 Mar 11 15:52 ./ungrib/src/ungrib.exe
 ```
 
-The next part of this guide splits into two paths depending on the type of dataset you're using: gribbed model data (in this guide, GFS) or netCDF reanalysis data (in this guide, ERA5). For a quick sanity check, let's look at what your parent directory should contain. Here's the results of me running `tree -Ld 1`, which lists out the folders in the current directory and then the folders INSIDE those folders:
+The next part of this guide splits into two paths depending on the type of dataset you're using: gribbed model data (in this guide, GFS) or netCDF reanalysis data (in this guide, ERA5). For a quick sanity check, let's look at what your parent directory should contain. Here's the results of me running `tree -Ld 2`, which lists out the folders in the current directory and then the folders INSIDE those folders:
 
 ```sh
 mbc18672@c4-16 mpas$ tree -Ld 2
@@ -320,18 +331,17 @@ It doesn't have to look exact (especially if you use different folder names or a
 
 ### Using GFS Data
 
-(If you understand how to use ungrib, this part of the guide may just be review!)
+(If you understand how to use ungrib with GFS data, this part of the guide may just be review!)
 
 If you are using another dataset than GFS, remember to update configurations as needed (namelists, Vtables, directory naming, etc.) and also know the provided download script will ONLY automate GFS downloads.
 
-We'll first need to collect the GFS datasets we'll be using. Let's lay the groundwork and set up a structure to store our files in. You can do this your own way, but I'm going to go back up to the parent folder and create a new `DATA` folder which will then have subfolders of `GFS`, `ERA5`, and `METDATA`.
+We'll first need to collect the GFS datasets we'll be using. Let's lay the groundwork and set up a structure to store our files in. You can do this your own way, but I'm going to go back up to the parent folder and create a new `DATA` folder which will then have subfolders of `GFS` and `METDATA`.
 
 ```sh
 cd ..
 mkdir DATA
 cd DATA
 mkdir GFS
-mkdir ERA5
 mkdir METDATA
 ```
 
@@ -452,11 +462,139 @@ mv GFS:* ../DATA/METDATA/
 ln -s ../DATA/METDATA/GFS* ../mpas_sim
 ```
 
-Now that our forcing data is in the folder, lets interpolate them to our grid. Check out the section after the next one! 
+Now that our forcing data is in the folder, lets interpolate them to our grid. Check out the "Interpolating ICs to Grid" section next!
 
 ### Using ERA5 Data
 
-coming soon :-)
+(If you understand how to use ungrib with ERA5 data, this part of the guide may just be review!)
+
+If you are using another dataset than GFS, remember to update configurations as needed (namelists, Vtables, directory naming, etc.) and also know the provided download script will ONLY automate GFS downloads.
+
+We'll first need to collect the GFS datasets we'll be using. Let's lay the groundwork and set up a structure to store our files in. You can do this your own way, but I'm going to go back up to the parent folder and create a new `DATA` folder which will then have subfolders of `ERA5`, and `METDATA`.
+
+```sh
+cd ..
+mkdir DATA
+cd DATA
+mkdir ERA5
+mkdir METDATA
+```
+
+My preferred way to download ERA5 data is from the `cdsapi` Python module which uses Copernicus's Climate Data Store to download and fetch gribbed ERA5 data. You can view more about its setup [here](https://cds.climate.copernicus.eu/how-to-api). Within /scripts under `era5.py` is what I used to download this data using data around the time of Hurricane Maria impacting Puerto Rico. In short, however, you will need these variables from all pressure levels:
+
+- `geopotential`
+
+- `relative_humidity`
+
+- `specific_humidity`
+
+- `temperature`
+
+- `u_component_of_wind`
+
+- `v_component_of_wind`
+
+And these single level variables:
+
+- `10m_u_component_of_wind`
+  
+- `10m_v_component_of_wind`
+
+- `2m_dewpoint_temperature`
+
+- `2m_temperature`
+
+- `mean_sea_level_pressure`
+
+- `surface_pressure`
+
+- `skin_temperature`
+
+- `sea_surface_temperature`
+
+- `sea_ice_cover` 
+
+- `snow_depth`
+
+- `soil_temperature_level_1` 
+
+- `soil_temperature_level_2`
+
+- `soil_temperature_level_3` 
+
+- `soil_temperature_level_4`
+
+- `volumetric_soil_water_layer_1` 
+
+- `volumetric_soil_water_layer_2`
+
+- `volumetric_soil_water_layer_3` 
+
+- `volumetric_soil_water_layer_4`
+
+- `land_sea_mask`
+
+You should download for the first hour and date you wish to initalize off of (i.e. 2017-09-15 00z) and if you're running a regional simulation, at a specific interval for how often you wish to create LBCs, scaling with runtime. If you are running a 48-hour simulation and wish to make 6-hourly LBCs, then you'd want to add the dates 09/15-09/17 and hours 00z, 06z, 12z, and 18z.
+
+Once you've downloaded your ERA5 data, it's time to ungrib it! Head over to your `WPS` folder and open namelist.wps, and be sure to set the start and end dates to the first and last times you set in your simulation. Be sure to also set your `interval_seconds` to how often you downloaded data (6 hours = 21600 seconds). Then change your prefix to `ERA5`.
+
+```
+&share
+...
+ start_date = '2017-09-15_00:00:00',
+ end_date   = '2017-09-17_00:00:00',
+ interval_seconds = 21600
+/
+
+&ungrib
+ out_format = 'WPS',
+ prefix = 'ERA5',
+/
+```
+
+Now, we'll need to symlink a variable table to the base of the WPS directory for ungrib to understand how to unpack our ERA5 files. These are located in `./ungrib/Variable_Tables`. ERA5 data uses the ECMWF variable table.
+
+`ln -s ./ungrib/Variable_Tables/Vtable.ECMWF Vtable`
+
+The name of the symlinked variable table **must** just be `Vtable`! Now we'll need to symlink our GFS datasets to this folder, for which a script is given to us to automatically do it within WPS.
+
+`./link_grib.csh /scratch/mbc18672/mpas/DATA/ERA5/*`
+
+... making sure to swap the path to where **your** GFS gribbed files are. Now we're ready to run ungrib!
+
+`./ungrib.exe`
+
+This may take some time. When finished, you should see this:
+
+```
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!  Successful completion of ungrib.   !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```
+
+and your WPS directory should be full of file starting with `GFS:*`:
+
+```sh
+mbc18672@ss-sub4 WPS$ ls -l ERA5*
+-rw-r--r-- 1 mbc18672 whlab 59257104 Apr  7 16:26 ERA5:2017-09-15_00
+-rw-r--r-- 1 mbc18672 whlab 59257104 Apr  7 16:26 ERA5:2017-09-15_06
+-rw-r--r-- 1 mbc18672 whlab 59257104 Apr  7 16:26 ERA5:2017-09-15_12
+-rw-r--r-- 1 mbc18672 whlab 59257104 Apr  7 16:26 ERA5:2017-09-15_18
+-rw-r--r-- 1 mbc18672 whlab 59257104 Apr  7 16:26 ERA5:2017-09-16_00
+-rw-r--r-- 1 mbc18672 whlab 59257104 Apr  7 16:26 ERA5:2017-09-16_06
+-rw-r--r-- 1 mbc18672 whlab 59257104 Apr  7 16:26 ERA5:2017-09-16_12
+-rw-r--r-- 1 mbc18672 whlab 59257104 Apr  7 16:26 ERA5:2017-09-16_18
+-rw-r--r-- 1 mbc18672 whlab 59257104 Apr  7 16:26 ERA5:2017-09-17_00
+```
+
+These files can now be moved into our `METDATA` (or equivalent) folder to prepare them to be used with `init_atmosphere_model`. We can then go ahead and symlink this to our `mpas_sim` folder (or, you can skip the `METDATA` copy and directly put in into your sim folder. Up to you!).
+
+```sh
+mv ERA5:* ../DATA/METDATA/
+ln -s ../DATA/METDATA/ERA5* ../mpas_sim
+```
+
+Now that our forcing data is in the folder, lets interpolate them to our grid. Check out the section after the next one! 
 
 ### Interpolating ICs to grid
 
@@ -550,15 +688,15 @@ And in the `streams.init_atmosphere`, change these fields:
 
 ```
 <immutable_stream name="input"
-                  type="input"
-                  filename_template="pr.static.nc"
-                  input_interval="initial_only" />
+      type="input"
+      filename_template="pr.static.nc"
+      input_interval="initial_only" />
 
 <immutable_stream name="output"
-                  type="output"
-                  filename_template="pr.init.nc"
-                  packages="initial_conds"
-                  output_interval="initial_only" />
+      type="output"
+      filename_template="pr.init.nc"
+      packages="initial_conds"
+      output_interval="initial_only" />
 ```
 
 ... we're simply changing the input to our new static field and the output to a new interpolated IC file!
@@ -652,22 +790,22 @@ In `streams.init_atmosphere`:
 ```
 <streams>
 <immutable_stream name="input"
-                  type="input"
-                  filename_template="pr.init.nc"
-                  input_interval="initial_only" />
+      type="input"
+      filename_template="pr.init.nc"
+      input_interval="initial_only" />
 
 <immutable_stream name="output"
-                  type="output"
-                  filename_template="null"
-                  packages="initial_conds"
-                  output_interval="initial_only" />
+      type="output"
+      filename_template="null"
+      packages="initial_conds"
+      output_interval="initial_only" />
 
 <immutable_stream name="lbc"
-                  type="output"
-                  filename_template="lbc.$Y-$M-$D_$h.$m.$s.nc"
-                  filename_interval="output_interval"
-                  packages="lbcs"
-                  output_interval="3:00:00" />
+      type="output"
+      filename_template="lbc.$Y-$M-$D_$h.$m.$s.nc"
+      filename_interval="output_interval"
+      packages="lbcs"
+      output_interval="3:00:00" />
 </streams>
 ```
 
@@ -862,9 +1000,9 @@ Everything else can remain the same. Let's modify our streams.atmosphere, now:
 
 ```
 <immutable_stream name="input"
-                  type="input"
-                  filename_template="pr.init.nc"
-                  input_interval="initial_only" />
+      type="input"
+      filename_template="pr.init.nc"
+      input_interval="initial_only" />
 
 <stream name="output"
         type="output"
@@ -885,7 +1023,7 @@ Everything else can remain the same. Let's modify our streams.atmosphere, now:
 
 - Change the input `filename_template` to your `init` grid.
 
-- For the `output` and `diagnostics` fields, change your output_interval to however your often you want files outputted; personally, I just want my entire model run bundled into two files, so I set it to the same run time. I'll dive more into the difference between the `diag.` and `history.` files later.
+- For the `output` and `diagnostics` fields, change your `output_interval` to however your often you want files outputted; personally, I just want my entire model run bundled into two files, so I set it to the same run time. I'll dive more into the difference between the `diag.` and `history.` files later.
 
 Now we can run our model! Instead of queueing `init_atmosphere_model` we're just going to queue `atmosphere_model`:
 
@@ -899,7 +1037,9 @@ This will be the longest step, and it will be important to check the output of y
 
 `Timing for integration step:`
 
-If this number is crazy high (ideally for real-time forecasting it should be LESS than your timestep (so you run faster than real time)) then you may need to go back and reconfigure your mesh to be rougher or more limited in scope.
+If this number is crazy high (ideally for real-time forecasting it should be LESS than your timestep) then you may need to go back and reconfigure your mesh to be rougher or more limited in scope.
+
+Once your mesh is complete and you are happy with the time it takes your timestep to process, all that's left to do is wait! Once its done, you should have some `history` and `diag` files that can be manipulated in a handful of programs. Congratulations!
 
 ---
 ## Sample files
