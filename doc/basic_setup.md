@@ -468,9 +468,7 @@ Now that our forcing data is in the folder, lets interpolate them to our grid. C
 
 (If you understand how to use ungrib with ERA5 data, this part of the guide may just be review!)
 
-If you are using another dataset than GFS, remember to update configurations as needed (namelists, Vtables, directory naming, etc.) and also know the provided download script will ONLY automate GFS downloads.
-
-We'll first need to collect the GFS datasets we'll be using. Let's lay the groundwork and set up a structure to store our files in. You can do this your own way, but I'm going to go back up to the parent folder and create a new `DATA` folder which will then have subfolders of `ERA5`, and `METDATA`.
+We'll first need to collect the ERA5 datasets we'll be using. Let's lay the groundwork and set up a structure to store our files in. You can do this your own way, but I'm going to go back up to the parent folder and create a new `DATA` folder which will then have subfolders of `ERA5` and `METDATA`.
 
 ```sh
 cd ..
