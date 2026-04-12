@@ -82,6 +82,14 @@ Using the SMIOL library.
 *******************************************************************************
 ```
 
+> As said above, `init_atmosphere_model` contains multiple modes of use to replace the WPS, determined by the "init case" which we'll describe later. These are:
+>
+> - `config_init_case = 7` -> static fields + Inital Conditionss
+> - `config_init_case = 8` -> surface updates (SST/sea ice)
+> - `config_init_case = 9` -> LBC generation
+>
+> Each step will reuse the same `init_atmosphere_model` executable.
+
 Now, you should have new files: `atmosphere_model`, `namelist.atmosphere`, `streams.atmosphere`, and a whole bunch of `stream_list.atmosphere.*` files.
 
 It's good practice not to run your simulations directly in this folder, but to instead symlink the executables to a different folder and then copy (not move!) the namelist files into that same folder. I went one folder up and made a new folder named `mpas_sim`, you can name it whatever you like. In this documentation, this is now the MPAS directory.
@@ -212,9 +220,11 @@ MAKE SURE these are set from the defaults:
 
 - `config_block_decomp_file_prefix` should be the part of YOUR own graph file all the way up to the number.
 
+> Subsequent times we need to edit `namelist.init_atmosphere` will have the whole config put in a collapsible, with differences denoted below it.
+
 Open your `streams.init_atmosphere` file and change **these lines** to the following:
 
-```
+```xml
 <immutable_stream name="input"
       type="input"
       filename_template="pr.grid.nc"
@@ -468,7 +478,7 @@ Now that our forcing data is in the folder, lets interpolate them to our grid. C
 
 (If you understand how to use ungrib with ERA5 data, this part of the guide may just be review!)
 
-We'll first need to collect the ERA5 datasets we'll be using. Let's lay the groundwork and set up a structure to store our files in. You can do this your own way, but I'm going to go back up to the parent folder and create a new `DATA` folder which will then have subfolders of `ERA5` and `METDATA`.
+We'll first need to collect the ERA5 datasets we'll be using. Let's lay the groundwork and set up a structure to store our files in. You can do this your own way, but I'm going to go back up to the parent folder and create a new `DATA` folder which will then have subfolders of `ERA5`, and `METDATA`.
 
 ```sh
 cd ..
@@ -558,7 +568,7 @@ The name of the symlinked variable table **must** just be `Vtable`! Now we'll ne
 
 `./link_grib.csh /scratch/mbc18672/mpas/DATA/ERA5/*`
 
-... making sure to swap the path to where **your** GFS gribbed files are. Now we're ready to run ungrib!
+... making sure to swap the path to where **your** ERA5 gribbed files are. Now we're ready to run ungrib!
 
 `./ungrib.exe`
 
@@ -570,7 +580,7 @@ This may take some time. When finished, you should see this:
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ```
 
-and your WPS directory should be full of file starting with `GFS:*`:
+and your WPS directory should be full of file starting with `ERA5:*`:
 
 ```sh
 mbc18672@ss-sub4 WPS$ ls -l ERA5*
@@ -599,6 +609,8 @@ Now that our forcing data is in the folder, lets interpolate them to our grid. C
 We'll need to edit our `namelist.init_atmosphere` and `streams.init_atmosphere` again...
 
 Here's what your namelist.init_atmosphere should look like:
+<details>
+<summary>Full namelist</summary>
 
 ```
 &nhyd_model
@@ -658,7 +670,9 @@ Here's what your namelist.init_atmosphere should look like:
 /
 ```
 
-... ensuring:
+</details>
+
+The following were changed:
 
 - `config_start_time` and `config_stop_time` is the time of the FIRST forcing file you have (`config_stop_time` can remain untouched here.). Format is `YYYY-MM-DD_hh:mm:ss`
 
@@ -684,7 +698,7 @@ Here's what your namelist.init_atmosphere should look like:
 
 And in the `streams.init_atmosphere`, change these fields:
 
-```
+```xml
 <immutable_stream name="input"
       type="input"
       filename_template="pr.static.nc"
@@ -711,9 +725,125 @@ Again, # is number of MPI jobs, equal to the number at the end of the graph file
 
 We should now have an IC-interpolated grid under the name `*.init.nc`! We're almost ready for an actual simulation, but first we need LBCs if running a regional sim! If you're not running a regional sim, then you can proceed directly to running the `atmosphere` core.
 
+### Creating Surface Updates
+
+> This step can be mostly skipped if doing a real-time simulation. This step will assume you're using ERA5 data.
+
+MPAS does not contain ways of updating itself on SST and sea-ice fractions and, as such, are static unless given updates. For simulations over water or that are longer (5-7 days+), it helps keep our model's output quality high. This mainly applies to retroactive runs, as it is hard to grab files of SST/sea-ice from times in the future.
+
+This is, again, achieved by editing our `namelist.init_atmosphere`:
+<details>
+<summary>Full namelist</summary>
+
+```
+&nhyd_model
+    config_init_case = 8
+    config_start_time = '2017-09-19_12:00:00'
+    config_stop_time = '2017-09-22_18:00:00'
+    config_theta_adv_order = 3
+    config_coef_3rd_order = 0.25
+/
+&dimensions
+    config_nvertlevels = 55
+    config_nsoillevels = 4
+    config_nfglevels = 38
+    config_nfgsoillevels = 4
+/
+&data_sources
+    config_geog_data_path = '/scratch/mbc18672/mpas/mpas_static'
+    config_met_prefix = 'ERA5'
+    config_sfc_prefix = 'ERA5'
+    config_fg_interval = 86400
+    config_landuse_data = 'MODIFIED_IGBP_MODIS_NOAH'
+    config_topo_data = 'GMTED2010'
+    config_vegfrac_data = 'MODIS'
+    config_albedo_data = 'MODIS'
+    config_maxsnowalbedo_data = 'MODIS'
+    config_supersample_factor = 3
+    config_use_spechumd = true
+    config_noahmp_static = false
+/
+&vertical_grid
+    config_ztop = 30000.0
+    config_nsmterrain = 1
+    config_smooth_surfaces = true
+    config_dzmin = 0.3
+    config_nsm = 30
+    config_tc_vertical_grid = true
+    config_blend_bdy_terrain = false
+/
+&interpolation_control
+    config_extrap_airtemp = 'lapse-rate'
+/
+&preproc_stages
+    config_static_interp = false
+    config_native_gwd_static = false
+    config_native_gwd_gsl_static = false
+    config_vertical_grid = false
+    config_met_interp = false
+    config_input_sst = true
+    config_frac_seaice = true
+/
+&io
+    config_pio_num_iotasks = 0
+    config_pio_stride = 1
+/
+&decomposition
+    config_block_decomp_file_prefix = 'pr.graph.info.part.'
+/
+```
+
+</details>
+
+Changing the following:
+
+- `config_init_case = 8`
+
+- `config_sfc_prefix = 'ERA5'` - if you download your SST files differently, then they can be prefixe differently i.e. `SST`
+
+- `config_fg_interval = 86400` - temporal resolution of your SST files
+
+- Under `preproc_stages`:
+  - &preproc_stages
+  - `config_static_interp = false`
+  - `config_native_gwd_static = false`
+  - `config_native_gwd_gsl_static = false`
+  - `config_vertical_grid = false`
+  - `config_met_interp = false`
+  - `config_input_sst = true`
+  - `config_frac_seaice = true`
+
+And then, in `streams.init_atmosphere`:
+```xml
+<immutable_stream name="surface"
+                  type="output"
+                  filename_template="pr.sfc_update.nc"
+                  filename_interval="none"
+                  packages="sfc_update"
+                  output_interval="86400" />
+```
+
+- Ensure that `filename_template` is to your liking
+
+- Ensure that `output_interval` equals what you set for `config_fg_interval`
+
+Now run `init_atmosphere` again!
+
+`mpiexec -np # ./init_atmosphere_model >& log.init_atmosphere.0000.out`
+
+or, if on a SLURM HPC:
+
+`srun -n # ./init_atmosphere_model`
+
+This should be really quick, and now you've got a nice `*.sfc_update.nc` file that we can use for our simulations!
+
 ### Creating LBCs
 
 Lateral boundary conditions (LBC) let our regional model know whats happening outside its bounds. We'll simply use the GFS forcing data we already have for this! Again, the namelist.init_atmosphere file will need to be edited:
+
+Full `namelist.init_atmosphere`:
+<details>
+<summary>Full namelist</summary>
 
 ```
 &nhyd_model
@@ -773,6 +903,8 @@ Lateral boundary conditions (LBC) let our regional model know whats happening ou
 /
 ```
 
+</details>
+
 Make sure:
 
 - `config_init_case = 9`, letting `init_atmosphere` know we're wanting to do LBCs.
@@ -785,7 +917,7 @@ Make sure:
 
 In `streams.init_atmosphere`:
 
-```
+```xml
 <streams>
 <immutable_stream name="input"
       type="input"
@@ -889,6 +1021,15 @@ lrwxrwxrwx 1 mbc18672 whlab   35 Mar  9 18:09 init_atmosphere_model -> ../MPAS-M
 
 Like before, this doesn't need to be exactly equal, but if it looks similar after following this guide, you're on the right path!
 
+### Summary of Pre-Processing Outputs
+
+At this point you should have:
+
+- *.static.nc -> static fields
+- *.init.nc -> initialized state
+- lbc.*.nc -> boundary conditions (if regional)
+- *.sfc_update.nc -> surface updates (optional)
+
 ---
 ## Running MPAS-A
 
@@ -982,7 +1123,7 @@ Checking your directory, there should now be handful of files ending in `.TBL`, 
 /
 ```
 
-Specifically, modify these lines:
+Specifically, modify these lines from the default:
 
 - `config_dt` is your timestep in seconds; a rough rule of thumb to start with is to set this to 6x your minimum resolution in km (so, a variable mesh with 1km as its most fine area should be 6sec).
 
@@ -996,7 +1137,7 @@ Specifically, modify these lines:
 
 Everything else can remain the same. Let's modify our streams.atmosphere, now:
 
-```
+```xml
 <immutable_stream name="input"
       type="input"
       filename_template="pr.init.nc"
@@ -1017,11 +1158,22 @@ Everything else can remain the same. Let's modify our streams.atmosphere, now:
 
         <file name="stream_list.atmosphere.diagnostics"/>
 </stream>
+
+<stream name="surface"
+        type="input"
+        filename_template="pr.sfc_update.nc"
+        filename_interval="none"
+        input_interval="none" >
+
+        <file name="stream_list.atmosphere.surface"/>
+</stream>
 ```
 
 - Change the input `filename_template` to your `init` grid.
 
 - For the `output` and `diagnostics` fields, change your `output_interval` to however your often you want files outputted; personally, I just want my entire model run bundled into two files, so I set it to the same run time. I'll dive more into the difference between the `diag.` and `history.` files later.
+
+- If you made surface update files, then update the `filename_template` of the `surface` stream to your surface update file.
 
 Now we can run our model! Instead of queueing `init_atmosphere_model` we're just going to queue `atmosphere_model`:
 
